@@ -16,7 +16,6 @@ limitations under the License.
 */
 package org.acme.bestpublishing.webscripts;
 
-import org.acme.bestpublishing.constants.BestPubConstants;
 import org.acme.bestpublishing.model.BestPubContentModel;
 import org.acme.bestpublishing.model.BestPubMetadataFileModel;
 import org.acme.bestpublishing.props.ChapterFolderProperties;
@@ -126,6 +125,9 @@ public class DeleteChapterFolderWebscript extends AbstractWebScript {
                                     existingChapterFolderNodeRef, ContentModel.PROP_NAME, updatedChapterFolderName);
                             serviceRegistry.getNodeService().setProperty(existingChapterFolderNodeRef,
                                     BestPubContentModel.ChapterInfoAspect.Prop.CHAPTER_NUMBER, updatedChapterNumber);
+
+                            // Update chapter number metadata for any files in chapter folder
+                            // TODO:
                         }
                     }
                 }

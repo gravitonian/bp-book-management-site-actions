@@ -150,6 +150,9 @@ public class CreateChapterAction extends ActionExecuterAbstractBase {
                     serviceRegistry.getNodeService().setProperty(existingChapterFolderNodeRef,
                             ChapterInfoAspect.Prop.CHAPTER_NUMBER, updatedChapterNumber);
 
+                    // Update chapter number metadata for any files in chapter folder
+                    // TODO:
+
                     // Check if we are at the position where we should add the new chapter folder, if so break out of loop
                     // as we don't need to update chapter folders that are coming before the new chapter in order
                     if (existingFolderChapterNumber == newChapterNumber) {
