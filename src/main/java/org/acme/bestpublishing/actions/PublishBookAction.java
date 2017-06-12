@@ -35,21 +35,21 @@ import java.util.List;
 public class PublishBookAction extends ActionExecuterAbstractBase {
     private static final Logger LOG = LoggerFactory.getLogger(PublishBookAction.class);
 
-	public static final String NAME = "uk.co.tandf.bopp.actions.publishISBNContentAction";
+	public static final String NAME = "uk.acme.tandf.bestpublishing.actions.publishISBNContentAction";
 
     /**
      *  BOPP services
      */
-    private DartsService dartsService;
+//    private DartsService dartsService;
 
     /**
      * Spring DI
      */
 
-    public void setDartsService(DartsService dartsService) {
+/*    public void setDartsService(DartsService dartsService) {
         this.dartsService = dartsService;
     }
-
+*/
     @Override
     protected void addParameterDefinitions(List<ParameterDefinition> paramList) {
         // No parameters are passed to action
@@ -64,6 +64,6 @@ public class PublishBookAction extends ActionExecuterAbstractBase {
         // Write content of /Company Home/RHO/{ISBN} folder directly to ZIP file on disk.
         // And at the same time generate XML file for each chapter containing metadata.
         // Stored in local directory configured in alfresco-globals.properties.
-        dartsService.createAndStoreDartsArtifactZIP(actionedUponNodeRef);
+        //dartsService.createAndStoreDartsArtifactZIP(actionedUponNodeRef);
     }
 }

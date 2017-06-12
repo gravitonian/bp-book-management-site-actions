@@ -1,0 +1,8 @@
+<webscript>
+    <shortname>Publish Book as EPub</shortname>
+    <description>Publish Book as EPub to web</description>
+    <url>/bestpub/publishIsbnToDarts?nodeRef={nodeRef}&amp;bookIsbn={bookIsbn}</url>
+    <format default="json">argument</format>
+	<authentication>user</authentication>
+    <family>BESTPUB</family>
+</webscript>

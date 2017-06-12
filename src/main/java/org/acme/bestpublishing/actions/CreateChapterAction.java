@@ -16,31 +16,35 @@ limitations under the License.
 */
 package org.acme.bestpublishing.actions;
 
+import org.acme.bestpublishing.constants.BestPubConstants;
+import org.acme.bestpublishing.model.BestPubContentModel;
+import org.acme.bestpublishing.model.BestPubMetadataFileModel;
+import org.acme.bestpublishing.props.ChapterFolderProperties;
+import org.acme.bestpublishing.services.AlfrescoRepoUtilsService;
+import org.acme.bestpublishing.services.BestPubUtilsService;
 import org.alfresco.error.AlfrescoRuntimeException;
 import org.alfresco.model.ContentModel;
 import org.alfresco.repo.action.ParameterDefinitionImpl;
 import org.alfresco.repo.action.executer.ActionExecuterAbstractBase;
+import org.alfresco.service.ServiceRegistry;
 import org.alfresco.service.cmr.action.Action;
 import org.alfresco.service.cmr.action.ParameterDefinition;
 import org.alfresco.service.cmr.dictionary.DataTypeDefinition;
-import org.alfresco.service.cmr.model.FileFolderService;
 import org.alfresco.service.cmr.model.FileInfo;
 import org.alfresco.service.cmr.repository.NodeRef;
-import org.alfresco.service.cmr.repository.NodeService;
-import org.alfresco.service.cmr.workflow.WorkflowInstance;
 import org.alfresco.service.namespace.QName;
 import org.apache.commons.lang.math.NumberUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
+
+import static org.acme.bestpublishing.model.BestPubContentModel.*;
 
 /**
- * Alfresco repo action that creates a new chapter folder for an ISBN
+ * Alfresco repo action that creates a new chapter folder for an ISBN,
+ * re-ordering existing chapter folders if necessary.
  *
  * @author martin.bergljung@marversolutions.org
  * @version 1.0
@@ -51,39 +55,35 @@ public class CreateChapterAction extends ActionExecuterAbstractBase {
     /**
      * Repo action parameters
      */
-    public static final String PARAM_CHAPTER_TITLE = "chapterTitle";
     public static final String PARAM_CHAPTER_NUMBER = "chapterNumber";
+    public static final String PARAM_CHAPTER_TITLE = "chapterTitle";
+    public static final String PARAM_CHAPTER_AUTHOR = "chapterAuthor";
 
     /**
-     * BOPP Services
+     * BestPub Services
      */
-    private BoppUtilsService boppUtilsService;
+    private BestPubUtilsService bestPubUtilsService;
+    private AlfrescoRepoUtilsService alfrescoRepoUtilsService;
 
     /**
      * Alfresco Services
      */
-    private NodeService nodeService;
-    private FileFolderService fileFolderService;
-    private WorkflowUtilsService workflowUtilsService;
+    ServiceRegistry serviceRegistry;
 
     /**
      * Spring DI
      */
 
-    public void setBoppUtilsService(final BoppUtilsService boppUtilsService) {
-        this.boppUtilsService = boppUtilsService;
+    public void setBestPubUtilsService(final BestPubUtilsService bestPubUtilsService) {
+        this.bestPubUtilsService = bestPubUtilsService;
     }
 
-    public void setWorkflowUtilsService(WorkflowUtilsService workflowUtilsService) {
-        this.workflowUtilsService = workflowUtilsService;
+    public void setAlfrescoRepoUtilsService(AlfrescoRepoUtilsService alfrescoRepoUtilsService) {
+        this.alfrescoRepoUtilsService = alfrescoRepoUtilsService;
     }
 
-    public void setNodeService(NodeService nodeService) {
-        this.nodeService = nodeService;
-    }
-
-    public void setFileFolderService(FileFolderService fileFolderService) {
-        this.fileFolderService = fileFolderService;
+    public void setServiceRegistry(ServiceRegistry serviceRegistry) {
+        this.serviceRegistry = serviceRegistry;
     }
 
     /**
@@ -92,16 +92,16 @@ public class CreateChapterAction extends ActionExecuterAbstractBase {
 
     @Override
     protected void addParameterDefinitions(List<ParameterDefinition> paramList) {
-        for (String s : new String[] {PARAM_CHAPTER_TITLE, PARAM_CHAPTER_NUMBER}) {
-            paramList.add(new ParameterDefinitionImpl(s, DataTypeDefinition.TEXT, true, getParamDisplayLabel(s)));
+        for (String param : new String[] {PARAM_CHAPTER_NUMBER, PARAM_CHAPTER_TITLE, PARAM_CHAPTER_AUTHOR}) {
+            paramList.add(new ParameterDefinitionImpl(
+                    param, DataTypeDefinition.TEXT, true, getParamDisplayLabel(param)));
         }
     }
 
     @Override
     protected void executeImpl(Action action, NodeRef actionedUponNodeRef) {
-        if (nodeService.exists(actionedUponNodeRef) == true) {
-            // Get the new chapter folder's number and what chapter title to set
-            String newChapterTitle = (String) action.getParameterValue(PARAM_CHAPTER_TITLE);
+        if (serviceRegistry.getNodeService().exists(actionedUponNodeRef) == true) {
+            // Get the new chapter folder's number, title, and author
             String chapterNumberString = (String)action.getParameterValue(PARAM_CHAPTER_NUMBER);
             if (!NumberUtils.isNumber(chapterNumberString)) {
                 throw new AlfrescoRuntimeException("Provided chapter number is not a number: " + chapterNumberString);
@@ -111,21 +111,24 @@ public class CreateChapterAction extends ActionExecuterAbstractBase {
                 // Set it to 1, so the new chapter is inserted as first
                 newChapterNumber = 1;
             }
+            String newChapterTitle = (String) action.getParameterValue(PARAM_CHAPTER_TITLE);
+            String newChapterAuthor = (String) action.getParameterValue(PARAM_CHAPTER_AUTHOR);
 
             // Make sure we got an ISBN folder to which we are adding the chapter folder
             NodeRef isbnFolderNodeRef = actionedUponNodeRef;
-            Serializable nodeName = nodeService.getProperty(isbnFolderNodeRef, ContentModel.PROP_NAME);
+            Serializable nodeName = serviceRegistry.getNodeService().getProperty(
+                    isbnFolderNodeRef, ContentModel.PROP_NAME);
             if (nodeName == null) {
                 throw new AlfrescoRuntimeException("ISBN Folder node name is null");
             }
             String isbn = (String) nodeName;
-
-            if (!boppUtilsService.isISBN(isbn)) {
+            if (!bestPubUtilsService.isISBN(isbn)) {
                 throw new AlfrescoRuntimeException("ISBN Folder node name is not and ISBN number");
             }
 
-            // Get the existing chapter folders for the ISBN
-            Map<ChapterFolderInfo, NodeRef> chapterFolders = boppUtilsService.getSortedChapterFolders(isbnFolderNodeRef);
+            // Get the existing chapter folders for the ISBN sorted on chapter number (1, 2, 3, ...)
+            Map<ChapterFolderProperties, NodeRef> chapterFolders =
+                    bestPubUtilsService.getSortedChapterFolders(isbnFolderNodeRef);
 
             // Adjust existing chapter folders if we are inserting a new chapter (i.e. it is not added last)
             if (newChapterNumber > chapterFolders.size()) {
@@ -134,15 +137,18 @@ public class CreateChapterAction extends ActionExecuterAbstractBase {
             } else {
                 // The new chapter should go in between existing chapters so we need to update chapter folder names
                 // and numbers before adding the new chapter
-                Map<ChapterFolderInfo, NodeRef> reverseChapters = ((TreeMap)chapterFolders).descendingMap();
-                for (Map.Entry<ChapterFolderInfo, NodeRef> existingChapterFolder : reverseChapters.entrySet()) {
+                Map<ChapterFolderProperties, NodeRef> reverseChapters = ((TreeMap)chapterFolders).descendingMap();
+                for (Map.Entry<ChapterFolderProperties, NodeRef> existingChapterFolder : reverseChapters.entrySet()) {
                     NodeRef existingChapterFolderNodeRef = existingChapterFolder.getValue();
-                    int existingFolderChapterNumber = existingChapterFolder.getKey().getChapterNr();
+
+                    Integer existingFolderChapterNumber = (Integer)existingChapterFolder.getKey().get(
+                            BestPubMetadataFileModel.CHAPTER_METADATA_NUMBER_PROP_NAME);
                     int updatedChapterNumber = existingFolderChapterNumber + 1;
-                    String updatedChapterFolderName = BoppConstants.CHAPTER_FOLDER_NAME_PREFIX + updatedChapterNumber;
-                    nodeService.setProperty(existingChapterFolderNodeRef, ContentModel.PROP_NAME, updatedChapterFolderName);
-                    nodeService.setProperty(existingChapterFolderNodeRef,
-                            BoppContentModel.ChapterMetadataAspect.Prop.CHAPTER_NUMBER, updatedChapterNumber);
+                    String updatedChapterFolderName = bestPubUtilsService.getChapterFolderName(updatedChapterNumber);
+                    serviceRegistry.getNodeService().setProperty(
+                            existingChapterFolderNodeRef, ContentModel.PROP_NAME, updatedChapterFolderName);
+                    serviceRegistry.getNodeService().setProperty(existingChapterFolderNodeRef,
+                            ChapterInfoAspect.Prop.CHAPTER_NUMBER, updatedChapterNumber);
 
                     // Check if we are at the position where we should add the new chapter folder, if so break out of loop
                     // as we don't need to update chapter folders that are coming before the new chapter in order
@@ -152,56 +158,34 @@ public class CreateChapterAction extends ActionExecuterAbstractBase {
                 }
             }
 
-            // Update ISBN folder metadata status to Partial now when we add a chapter with missing metadata
-            // And also the number of chapters that now is one more
-            int currenNumberOfChapters = (Integer) nodeService.getProperty(
-                    isbnFolderNodeRef, BoppContentModel.BookMetadataAspect.Prop.BOOK_NUMBER_OF_CHAPTERS);
-            nodeService.setProperty(isbnFolderNodeRef,
-                    BoppContentModel.BookMetadataAspect.Prop.BOOK_NUMBER_OF_CHAPTERS, currenNumberOfChapters + 1);
-            nodeService.setProperty(isbnFolderNodeRef,
-                    BoppContentModel.BookMetadataAspect.Prop.BOOK_METADATA_STATUS, BoppContentModel.BookMetadataStatus.PARTIAL.toString());
-
-            // Setup the basic ISBN folder metadata, that will also be set on the new chapter folder
-            String bookTitle = (String) nodeService.getProperty(isbnFolderNodeRef,
-                    BoppContentModel.BookMetadataAspect.Prop.BOOK_TITLE);
-            String bookSubTitle = (String) nodeService.getProperty(isbnFolderNodeRef,
-                    BoppContentModel.BookMetadataAspect.Prop.BOOK_SUBTITLE);
-            String bookSubject = (String) nodeService.getProperty(isbnFolderNodeRef,
-                    BoppContentModel.BookMetadataAspect.Prop.BOOK_SUBJECT_NAME);
-            Map<QName, Serializable> bookMetadataAspectProps = new HashMap<QName, Serializable>();
-            bookMetadataAspectProps.put(BoppContentModel.BookMetadataAspect.Prop.ISBN, isbn);
-            bookMetadataAspectProps.put(BoppContentModel.BookMetadataAspect.Prop.BOOK_TITLE, bookTitle);
-            bookMetadataAspectProps.put(BoppContentModel.BookMetadataAspect.Prop.BOOK_SUBTITLE, bookSubTitle);
-            bookMetadataAspectProps.put(BoppContentModel.BookMetadataAspect.Prop.BOOK_SUBJECT_NAME, bookSubject);
-
             // Now create the new chapter folder with basic chapter metadata
-            String chapterFolderName = BoppConstants.CHAPTER_FOLDER_NAME_PREFIX + newChapterNumber;
-            FileInfo chapterFileInfo = fileFolderService.create(isbnFolderNodeRef, chapterFolderName, BoppContentModel.ChapterFolderType.QNAME);
-            LOG.debug("Created chapter folder /Company Home/{}/{}/{} [chapterNo={}][chapterTitle={}][metaStatus={}]",
-                    new Object[]{RHO_FOLDER_NAME, isbn, chapterFileInfo.getName(), newChapterNumber, newChapterTitle,
-                            BoppContentModel.ChapterMetadataStatus.MISSING.toString()});
+            String chapterFolderName = bestPubUtilsService.getChapterFolderName(newChapterNumber);
+            FileInfo chapterFileInfo = serviceRegistry.getFileFolderService().create(
+                    isbnFolderNodeRef, chapterFolderName, ChapterFolderType.QNAME);
             Map<QName, Serializable> chapterMetadataAspectProps = new HashMap<>();
-            chapterMetadataAspectProps.put(BoppContentModel.ChapterMetadataAspect.Prop.CHAPTER_NUMBER, newChapterNumber);
-            chapterMetadataAspectProps.put(BoppContentModel.ChapterMetadataAspect.Prop.CHAPTER_TITLE, newChapterTitle);
-            chapterMetadataAspectProps.put(BoppContentModel.ChapterMetadataAspect.Prop.CHAPTER_METADATA_STATUS,
-                    BoppContentModel.ChapterMetadataStatus.MISSING.toString());
-            nodeService.addAspect(chapterFileInfo.getNodeRef(), BoppContentModel.BookMetadataAspect.QNAME, bookMetadataAspectProps);
-            nodeService.addAspect(chapterFileInfo.getNodeRef(), BoppContentModel.ChapterMetadataAspect.QNAME, chapterMetadataAspectProps);
+            chapterMetadataAspectProps.put(ChapterInfoAspect.Prop.CHAPTER_NUMBER, newChapterNumber);
+            chapterMetadataAspectProps.put(ChapterInfoAspect.Prop.CHAPTER_TITLE, newChapterTitle);
+            chapterMetadataAspectProps.put(ChapterInfoAspect.Prop.CHAPTER_AUTHOR_NAME, newChapterAuthor);
+            chapterMetadataAspectProps.put(ChapterInfoAspect.Prop.CHAPTER_METADATA_STATUS,
+                    ChapterMetadataStatus.COMPLETED.toString());
+            serviceRegistry.getNodeService().addAspect(chapterFileInfo.getNodeRef(),
+                    ChapterInfoAspect.QNAME, chapterMetadataAspectProps);
+            LOG.debug("Added chapter folder {} [chapterTitle={}]",
+                    alfrescoRepoUtilsService.getDisplayPathForNode(chapterFileInfo.getNodeRef()),
+                    newChapterTitle);
 
 
-            // And finally setup workflow variable that indicates if metadata is complete or not,
-            // should be set to false now
-            WorkflowInstance workflowInstance = workflowUtilsService.getWorkflowInstanceForIsbn(
-                    BoppWorkflowModel.BOPP_INGEST_AND_PUBLISH_WORKFLOW_NAME, isbn);
-            if (workflowInstance != null) {
-                // We got a workflow instance, so set the var
-                boolean metadataComplete = false;
-                workflowUtilsService.setProcessVariable(workflowInstance.getId(), VAR_METADATA_COMPLETE, metadataComplete);
-                LOG.debug("Setting workflow variable [{}={}] {}", new Object[] { VAR_METADATA_COMPLETE, metadataComplete,
-                        "[workflowInstanceId=" + workflowInstance.getId()+"]" });
-            } else {
-                // Workflow instance has completed for this ISBN, so nothing to do
-            }
+            // Copy book info metadata to the new chapter folder
+            Set<QName> aspects = new HashSet<>();
+            aspects.add(BestPubContentModel.BookInfoAspect.QNAME);
+            alfrescoRepoUtilsService.copyAspects(isbnFolderNodeRef, chapterFileInfo.getNodeRef(), aspects);
+
+            // Update ISBN folder metadata and set the number of chapters to one more
+            int currenNumberOfChapters = (Integer) serviceRegistry.getNodeService().getProperty(
+                    isbnFolderNodeRef, BestPubContentModel.BookInfoAspect.Prop.BOOK_NUMBER_OF_CHAPTERS);
+            serviceRegistry.getNodeService().setProperty(isbnFolderNodeRef,
+                    BestPubContentModel.BookInfoAspect.Prop.BOOK_NUMBER_OF_CHAPTERS, currenNumberOfChapters + 1);
+
         } else {
             LOG.error("Cannot create chapter folder, ISBN node reference does not exist {}", actionedUponNodeRef);
         }

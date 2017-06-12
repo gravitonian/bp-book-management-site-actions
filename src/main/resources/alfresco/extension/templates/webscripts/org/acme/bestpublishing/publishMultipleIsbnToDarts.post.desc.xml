@@ -1,0 +1,8 @@
+<webscript>
+    <shortname>Publish Multiple Isbn Books to DARTS</shortname>
+    <description>Publish Multiple Isbn Books to DARTS</description>
+    <url>/bestpub/publishMultipleIsbnToDarts?isbnList={isbnList}</url>
+    <format default="json">argument</format>
+	<authentication>user</authentication>
+    <family>BESTPUB</family>
+</webscript>

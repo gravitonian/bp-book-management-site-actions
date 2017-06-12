@@ -1,0 +1,8 @@
+<webscript>
+    <shortname>Delete Chapter Folder</shortname>
+    <description>Delete chapter folder for an ISBN and re-order the rest of the chapter folders accordingly</description>
+    <url>/bestpub/deleteChapterFolder?nodeRef={nodeRef}</url>
+    <format default="json">argument</format>
+	<authentication>user</authentication>
+	<family>BESTPUB</family>
+</webscript>
