@@ -16,7 +16,6 @@ limitations under the License.
 */
 package org.acme.bestpublishing.actions;
 
-import org.acme.bestpublishing.constants.BestPubConstants;
 import org.acme.bestpublishing.model.BestPubContentModel;
 import org.acme.bestpublishing.model.BestPubMetadataFileModel;
 import org.acme.bestpublishing.props.ChapterFolderProperties;

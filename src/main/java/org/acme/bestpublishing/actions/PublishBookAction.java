@@ -16,6 +16,7 @@ limitations under the License.
 */
 package org.acme.bestpublishing.actions;
 
+import org.acme.bestpublishing.services.PublishingService;
 import org.alfresco.repo.action.executer.ActionExecuterAbstractBase;
 import org.alfresco.service.cmr.action.Action;
 import org.alfresco.service.cmr.action.ParameterDefinition;
@@ -35,21 +36,21 @@ import java.util.List;
 public class PublishBookAction extends ActionExecuterAbstractBase {
     private static final Logger LOG = LoggerFactory.getLogger(PublishBookAction.class);
 
-	public static final String NAME = "uk.acme.tandf.bestpublishing.actions.publishISBNContentAction";
+	public static final String NAME = "org.acme.bestpublishing.actions.publishBookAction";
 
     /**
-     *  BOPP services
+     *  Best Publishing services
      */
-//    private DartsService dartsService;
+    private PublishingService publishingService;
 
     /**
      * Spring DI
      */
 
-/*    public void setDartsService(DartsService dartsService) {
-        this.dartsService = dartsService;
+    public void setPublishingService(PublishingService publishingService) {
+        this.publishingService = publishingService;
     }
-*/
+
     @Override
     protected void addParameterDefinitions(List<ParameterDefinition> paramList) {
         // No parameters are passed to action
@@ -60,10 +61,10 @@ public class PublishBookAction extends ActionExecuterAbstractBase {
      */
 
     @Override
-    protected void executeImpl(Action action, final NodeRef actionedUponNodeRef) {
-        // Write content of /Company Home/RHO/{ISBN} folder directly to ZIP file on disk.
-        // And at the same time generate XML file for each chapter containing metadata.
-        // Stored in local directory configured in alfresco-globals.properties.
-        //dartsService.createAndStoreDartsArtifactZIP(actionedUponNodeRef);
+    protected void executeImpl(Action action, NodeRef actionedUponNodeRef) {
+        // Write content of /Company Home/Sites/book-management/documentLibrary/{year}/{isbn}
+        // folder directly to EPub file (i.e. ZIP file) on disk.
+        // The resulting EPub file is stored in local directory configured in alfresco-globals.properties.
+        publishingService.createAndStoreEPubArtifact(actionedUponNodeRef);
     }
 }

@@ -1,0 +1,8 @@
+<webscript>
+    <shortname>Check Metadata Updates</shortname>
+    <description>Check if any metadata has been changed for the ISBN</description>
+    <url>/bestpub/checkMetadataUpdates?nodeRef={nodeRef}</url>
+    <format default="json">argument</format>
+	<authentication>user</authentication>
+    <family>BESTPUB</family>
+</webscript>

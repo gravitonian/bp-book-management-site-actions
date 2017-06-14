@@ -20,7 +20,9 @@
        xsi:schemaLocation="http://www.springframework.org/schema/beans
           http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
 
-    <!-- Alfresco Repository Actions registered via Spring Beans, bean id is the id of the repo action -->
+    <!--
+        Alfresco Repository Actions registered via Spring Beans, bean id is the id of the repo action
+        -->
     <bean id="org.acme.bestpublishing.actions.createChapterAction"
           class="org.acme.bestpublishing.actions.CreateChapterAction"
           parent="action-executer">
@@ -32,10 +34,12 @@
     <bean id="org.acme.bestpublishing.actions.publishBookAction"
           class="org.acme.bestpublishing.actions.PublishBookAction"
           parent="action-executer">
-
+        <property name="publishingService" ref="org.acme.bestpublishing.services.publishingService" />
     </bean>
 
-    <!-- Alfresco Web Scripts -->
+    <!--
+        Alfresco Web Scripts
+        -->
 
     <bean id="webscript.org.acme.bestpublishing.deleteChapterFolder.get"
           class="org.acme.bestpublishing.webscripts.DeleteChapterFolderWebscript" parent="webscript">
@@ -43,4 +47,16 @@
         <property name="bestPubUtilsService" ref="org.acme.bestpublishing.services.bestPubUtilsService" />
         <property name="serviceRegistry" ref="ServiceRegistry"/>
     </bean>
+
+    <bean id="webscript.org.acme.bestpublishing.publishBookToWeb.get"
+          class="org.acme.bestpublishing.webscripts.PublishBookWebscript" parent="webscript">
+        <property name="serviceRegistry" ref="ServiceRegistry"/>
+    </bean>
+
+    <bean id="webscript.org.acme.bestpublishing.checkMetadataUpdates.get"
+          class="org.acme.bestpublishing.webscripts.CheckMetadataUpdatesWebscript" parent="webscript">
+        <property name="bestPubUtilsService" ref="org.acme.bestpublishing.services.bestPubUtilsService" />
+        <property name="serviceRegistry" ref="ServiceRegistry"/>
+    </bean>
+
 </beans>
